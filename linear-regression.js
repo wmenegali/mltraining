@@ -8,7 +8,9 @@ class LinearRegression {
 
     this.options = Object.assign({ learningRate: 0.1, iterations: 1000 }, options);
 
-    this.weights = tf.zeros([2, 1]);
+    this.weights = tf.zeros([this.features.shape[1], 1]);
+
+    this.mseHistory = [];
   }
 
   gradientDescent() {
@@ -28,6 +30,8 @@ class LinearRegression {
   train() {
     for (let i = 0; i < this.options.iterations; i++) {
       this.gradientDescent();
+      this.recordMSE();
+      this.updateLearningRate();
     }
   }
 
@@ -49,9 +53,51 @@ class LinearRegression {
 
   processFeatures(features) {
     features = tf.tensor(features);
+
+    // if these are calculated, standardize
+    if (this.mean && this.variance) {
+      features = features.sub(this.mean).div(this.variance.pow(0.5));
+    } else {
+      features = this.standardize(features);
+    }
+
     features = tf.ones([features.shape[0], 1]).concat(features, 1);
 
     return features;
+  }
+
+  standardize(features) {
+    const { mean, variance } = tf.moments(features, 0);
+
+    this.mean = mean;
+    this.variance = variance;
+
+    return features.sub(mean).div(variance.pow(0.5));
+  }
+
+  // MSE = mean squared error
+  recordMSE() {
+    const mse = this.features
+      .matMul(this.weights)
+      .sub(this.labels)
+      .pow(2)
+      .sum()
+      .div(this.features.shape[0])
+      .get();
+
+    this.mseHistory.unshift(mse);
+  }
+
+  updateLearningRate() {
+    if (this.mseHistory.length < 2) {
+      return;
+    }
+
+    if (this.mseHistory[0] > this.mseHistory[1]) {
+      this.options.learningRate /= 2;
+    } else {
+      this.options.learningRate *= 1.05;
+    }
   }
 }
 
